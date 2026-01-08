@@ -1,5 +1,6 @@
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
+import requests
 
 def normalize_url(url):
     parsed = urlparse(url)
@@ -27,3 +28,26 @@ def extract_page_data(html, page_url):
         "first_paragraph": get_first_paragraph_from_html(html),
         "outgoing_links": get_urls_from_html(html, page_url),
         "image_urls": get_images_from_html(html, page_url)}
+
+def get_html(url):
+    resp = requests.get(url, headers={"User-Agent": "BootCrawler/1.0"})
+    resp.raise_for_status()
+    if 'text/html' not in resp.headers.get('content-type'):
+        raise Exception(f"incorrect content-type of kind {resp.headers.get('content-type')}")
+    
+    return resp.text
+
+def crawl_page(base_url, current_url=None, page_data=None):
+    normalized = normalize_url(current_url)
+    if normalize_url(base_url) not in normalized:
+        return
+    if page_data.get(normalized):
+        return
+    try:
+        page = extract_page_data(get_html(current_url), current_url)
+        page_data[normalized] = page
+        for url in page.get('outgoing_links'):
+            crawl_page(base_url, url, page_data)
+    except Exception as e:
+        print(e)
+        pass
